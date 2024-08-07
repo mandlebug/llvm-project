@@ -328,6 +328,10 @@ def err_non_default_visibility_dllimport : Error<
 def err_ifunc_resolver_return : Error<
   "ifunc resolver function must return a pointer">;
 
+def warn_tentative_def_in_header: Warning<
+  "possible missing 'extern' on global variable definition in header">,
+  InGroup<DiagGroup<"tentative-definitions">>;
+
 def warn_atomic_op_misaligned : Warning<
   "misaligned atomic operation may incur "
   "significant performance penalty"

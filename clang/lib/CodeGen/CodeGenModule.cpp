@@ -5203,6 +5203,15 @@ void CodeGenModule::EmitTentativeDefinition(const VarDecl *D) {
   if (GV && !GV->isDeclaration())
     return;
 
+  // Before emitting, warn on tentative definitions in headers when not
+  // using -fcommon.
+  assert(D->isThisDeclarationADefinition() == VarDecl::TentativeDefinition);
+  SourceManager &SM = getContext().getSourceManager();
+  if (CodeGenOpts.NoCommon && !SM.isInMainFile(D->getLocation()) &&
+      !D->isWeak() && !(D->getFormalLinkage() == Linkage::Internal)) {
+    Diags.Report(D->getLocation(), diag::warn_tentative_def_in_header);
+  }
+
   // If we have not seen a reference to this variable yet, place it into the
   // deferred declarations table to be emitted if needed later.
   if (!MustBeEmitted(D) && !GV) {
