@@ -473,7 +473,8 @@ void Parser::initializePragmaHandlers() {
   PP.AddPragmaHandler(OpenACCHandler.get());
 
   if (getLangOpts().MicrosoftExt ||
-      getTargetInfo().getTriple().isOSBinFormatELF()) {
+      getTargetInfo().getTriple().isOSBinFormatELF() ||
+      getTargetInfo().getTriple().isOSAIX()) {
     MSCommentHandler = std::make_unique<PragmaCommentHandler>(Actions);
     PP.AddPragmaHandler(MSCommentHandler.get());
   }
@@ -595,7 +596,8 @@ void Parser::resetPragmaHandlers() {
   OpenACCHandler.reset();
 
   if (getLangOpts().MicrosoftExt ||
-      getTargetInfo().getTriple().isOSBinFormatELF()) {
+      getTargetInfo().getTriple().isOSBinFormatELF() ||
+      getTargetInfo().getTriple().isOSAIX()) {
     PP.RemovePragmaHandler(MSCommentHandler.get());
     MSCommentHandler.reset();
   }
@@ -3208,6 +3210,7 @@ void PragmaCommentHandler::HandlePragma(Preprocessor &PP,
     .Case("compiler", PCK_Compiler)
     .Case("exestr",   PCK_ExeStr)
     .Case("user",     PCK_User)
+    .Case("copyright", PCK_Copyright)
     .Default(PCK_Unknown);
   if (Kind == PCK_Unknown) {
     PP.Diag(Tok.getLocation(), diag::err_pragma_comment_unknown_kind);
@@ -3218,6 +3221,19 @@ void PragmaCommentHandler::HandlePragma(Preprocessor &PP,
     PP.Diag(Tok.getLocation(), diag::warn_pragma_comment_ignored)
         << II->getName();
     return;
+  }
+
+  // pragma comment copyright can each appear only once in a TU.
+  if (PP.getTargetInfo().getTriple().isOSAIX()) {
+    static bool SeenAIXCopyright = false;
+    if (Kind == PCK_Copyright) {
+      if (SeenAIXCopyright) {
+        PP.Diag(Tok.getLocation(), diag::warn_pragma_comment_once)
+            << II->getName();
+        return;
+      }
+      SeenAIXCopyright = true;
+    }
   }
 
   // Read the optional string if present.
@@ -3244,6 +3260,12 @@ void PragmaCommentHandler::HandlePragma(Preprocessor &PP,
   if (Tok.isNot(tok::eod)) {
     PP.Diag(Tok.getLocation(), diag::err_pragma_comment_malformed);
     return;
+  }
+
+  if (PP.getTargetInfo().getTriple().isOSAIX()) {
+    // Accept and ignore well-formed copyright with empty string.
+    if(Kind == PCK_Copyright && ArgumentString.empty())
+      return;
   }
 
   // If the pragma is lexically sound, notify any interested PPCallbacks.
