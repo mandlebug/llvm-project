@@ -1570,11 +1570,9 @@ void CodeGenModule::Release() {
   EmitBackendOptionsMetadata(getCodeGenOpts());
 
   // Emit copyright metadata for AIX
-  if (!AIXCopyrightComment.empty()) {
-    auto *NMD =
-        getModule().getOrInsertNamedMetadata("aix.copyright.comment");
-    for (auto *MD : AIXCopyrightComment)
-      NMD->addOperand(MD);
+  if (AIXCopyrightComment) {
+    auto *NMD = getModule().getOrInsertNamedMetadata("aix.copyright.comment");
+    NMD->addOperand(AIXCopyrightComment);
   }
 
   // If there is device offloading code embed it in the host now.
@@ -3410,21 +3408,19 @@ void CodeGenModule::AddDependentLib(StringRef Lib) {
   LinkerOptionsMetadata.push_back(llvm::MDNode::get(C, MDOpts));
 }
 
-/// Process the #pragma comment(copyright, " copy right string ")
-/// and create llvm metadata for the copyrgiht
+/// Process the #pragma comment(copyright, "copyright string ")
+/// and create llvm metadata for the copyright
 void CodeGenModule::ProcessPragmaCommentCopyright(StringRef Comment) {
 
-  // Pragma Comment Copyright is enabled only when:
-  //  - OS is AIX
-  //  - Comment is non empty
-  if (!getTriple().isOSAIX() || Comment.empty())
+  if (!getTriple().isOSAIX())
     return;
 
   // Create llvm metadata with the comment string
   auto &C = getLLVMContext();
   llvm::Metadata *Ops[] = {llvm::MDString::get(C, Comment.str())};
   auto *Node = llvm::MDNode::get(C, Ops);
-  AIXCopyrightComment.push_back(Node); // This should be available during the runtime
+  if(!AIXCopyrightComment)
+    AIXCopyrightComment = Node;
 }
 
 /// Add link options implied by the given module, including modules

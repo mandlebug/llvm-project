@@ -1,4 +1,3 @@
-// REQUIRES: powerpc-registered-target, system-aix
 // RUN: %clang_cc1 %s -triple powerpc-ibm-aix -O0 -disable-llvm-passes -emit-llvm -o - | FileCheck %s
 // RUN: %clang_cc1 %s -triple powerpc64-ibm-aix -O0 -disable-llvm-passes -emit-llvm -o - | FileCheck %s
 // RUN: %clang_cc1 %s -triple powerpc-ibm-aix -verify
@@ -16,7 +15,7 @@
 #pragma comment(copyright, "@(#) Copyright")
 
 // Test duplicate copyright - should warn and ignore
-#pragma comment(copyright, "Duplicate Copyright") // expected-warning {{'#pragma comment copyright' can be specified only once per source file - ignored}}
+#pragma comment(copyright, "Duplicate Copyright") // expected-warning {{'#pragma comment copyright' can be specified only once per translation unit - ignored}}
 
 int main() { return 0; }
 

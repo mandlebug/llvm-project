@@ -236,6 +236,7 @@ struct PragmaCommentHandler : public PragmaHandler {
 
 private:
   Sema &Actions;
+  bool SeenAIXCopyright = false; // TU-scoped
 };
 
 struct PragmaDetectMismatchHandler : public PragmaHandler {
@@ -3223,17 +3224,14 @@ void PragmaCommentHandler::HandlePragma(Preprocessor &PP,
     return;
   }
 
-  // pragma comment copyright can each appear only once in a TU.
-  if (PP.getTargetInfo().getTriple().isOSAIX()) {
-    static bool SeenAIXCopyright = false;
-    if (Kind == PCK_Copyright) {
+  // On AIX, pragma comment copyright can each appear only once in a TU.
+  if (PP.getTargetInfo().getTriple().isOSAIX() && Kind == PCK_Copyright) {
       if (SeenAIXCopyright) {
         PP.Diag(Tok.getLocation(), diag::warn_pragma_comment_once)
             << II->getName();
         return;
       }
       SeenAIXCopyright = true;
-    }
   }
 
   // Read the optional string if present.

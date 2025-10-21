@@ -1369,7 +1369,7 @@ def err_pragma_comment_unknown_kind : Error<"unknown kind of pragma comment">;
 def warn_pragma_comment_ignored : Warning<"'#pragma comment %0' ignored">,
   InGroup<IgnoredPragmas>;
 def warn_pragma_comment_once : Warning<"'#pragma comment %0' "
-  "can be specified only once per source file - ignored">,
+  "can be specified only once per translation unit - ignored">,
   InGroup<IgnoredPragmas>;
 // - #pragma detect_mismatch
 def err_pragma_detect_mismatch_malformed : Error<

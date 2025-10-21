@@ -6,21 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass lowers module-level copyright metadata emitted by Clang:
+// CopyrightMetadataPass pass lowers module-level copyright metadata emitted by
+// Clang:
 //
 //     !aix.copyright.comment = !{!"Copyright ..."}
 //
 // into concrete, translation-unit–local globals to ensure that copyright
 // strings:
-//
-//   • survive all optimization and LTO pipelines,
-//   • are not removed by linker garbage collection, and
-//   • remain visible in the final XCOFF binary.
+//   - survive all optimization and LTO pipelines,
+//   - are not removed by linker garbage collection, and
+//   - remain visible in the final XCOFF binary.
 //
 // For each module (translation unit), the pass performs the following:
 //
 //   1. Creates a null-terminated, internal constant string global
-//      (`__aix_copyright_str`) containing the copyright text.
+//      (`__aix_copyright_str`) containing the copyright text in
+//      `__aix_copyright` section..
 //
 //   2. Marks the string in `llvm.used` so it cannot be dropped by
 //      optimization or LTO.
@@ -29,10 +30,24 @@
 //      defined function in the module. The PowerPC AIX backend recognizes
 //      this metadata and emits a `.ref` directive from the function to the
 //      string, creating a concrete relocation that prevents the linker from
-//      discarding it.
+//      discarding it (as long as the referencing symbol is kept).
 //
+//  Input IR:
+//     !aix.copyright.comment = !{!"Copyright"}
+//  Output IR:
+//     @__aix_copyright_str = internal constant [N x i8] c"Copyright\00",
+//                          section "__aix_copyright"
+//     @llvm.used = appending global [1 x ptr] [ptr @__aix_copyright_str]
+//
+//     define i32 @func() !implicit.ref !5 { ... }
+//     !5 = !{ptr @__aix_copyright_str}
+//
+// The copyright string is placed in the "__aix_copyright" section (mapped to
+// an XCOFF csect with [RO] storage class), making it easily identifiable in
+// object files and executables. The R_REF relocation prevents the linker
+// from discarding this section during garbage collection.  Copyright string (if
+// kept by the linker) is expected to be loaded at run time.
 //===----------------------------------------------------------------------===//
-
 
 #include "llvm/Transforms/Utils/CopyrightMetadataPass.h"
 
@@ -44,7 +59,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
@@ -59,8 +73,6 @@
 #define DEBUG_TYPE "copyright-metadata"
 
 using namespace llvm;
-
-namespace llvm {
 
 static cl::opt<bool>
     DisableCopyrightMetadata("disable-copyright-metadata", cl::ReallyHidden,
@@ -106,22 +118,28 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
                                    /*isConstant=*/true,
                                    GlobalValue::InternalLinkage, StrInit,
                                    /*Name=*/"__aix_copyright_str");
+  // Set unnamed_addr to allow the linker to merge identical strings
   StrGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
   StrGV->setAlignment(Align(1));
-  StrGV->setSection("__llvm_copyright");
+  // Place in the "__aix_copyright" section.
+  // Backend maps this to an appropriate XCOFF csect (typically [RO])
+  // The section will appear in assembly as:
+  //   .csect __aix_copyright[RO],2
+  StrGV->setSection("__aix_copyright");
 
-  // 2. Ensure LLVM doesn't delete it (through all pipelines/LTO).
+  // 2. Add the string to llvm.used to prevent LLVM optimization/LTO passes from
+  // removing it.
   appendToUsed(M, {StrGV});
-  // appendToCompilerUsed(M, {StrGV});
 
   // 3. Attach !implicit ref to every defined function
   // Create a metadata node pointing to the copyright string:
   //   !N = !{ptr @__aix_copyright_str}
   Metadata *Ops[] = {ConstantAsMetadata::get(StrGV)};
-  auto *ValMD = ValueAsMetadata::get(StrGV);
   MDNode *ImplicitRefMD = MDNode::get(Ctx, Ops);
 
-  auto addImplicitRef = [&](Function &F) {
+  // Lambda to attach implicit.ref metadata to a function.
+  // The backend will translate this into .ref assembly directives.
+  auto AddImplicitRef = [&](Function &F) {
     if (F.isDeclaration())
       return;
     // Attach the implicit.ref metadata to the function
@@ -130,15 +148,13 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
                       << F.getName() << "\n");
   };
 
+  // Process all functions in the module
   for (Function &F : M)
-    addImplicitRef(F);
+    AddImplicitRef(F);
 
-  // Remove the original metadata since we've processed it
-  // This prevents reprocessing if the pass runs multiple times
+  // Cleanup the processed metadata.
   MD->eraseFromParent();
   LLVM_DEBUG(dbgs() << "[copyright] created string and anchor for module\n");
 
   return PreservedAnalyses::all();
 }
-
-} // namespace llvm
