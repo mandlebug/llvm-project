@@ -21,7 +21,7 @@
 ;      defined function in the module. The PowerPC AIX backend recognizes
 ;      this metadata and emits a `.ref` directive from the function to the
 ;      string, creating a concrete relocation that prevents the linker from
-;      discarding it.
+;      discarding it (as long as the referencing symbol is kept).
 
 target triple = "powerpc-ibm-aix"
 

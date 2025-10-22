@@ -7600,7 +7600,10 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
     case PCK_Lib:
         AddDependentLib(PCD->getArg());
       break;
-    case PCK_Copyright:      
+    case PCK_Copyright:
+      // Skip pragmas deserialized from modules/PCHs
+      if (PCD->isFromASTFile())
+        break;
       ProcessPragmaCommentCopyright(PCD->getArg());
       break;
     case PCK_Compiler:
