@@ -587,9 +587,9 @@ private:
   /// A vector of metadata strings for dependent libraries for ELF.
   SmallVector<llvm::MDNode *, 16> ELFDependentLibraries;
 
-  /// Single module-level copyright comment for AIX (if any).
+  /// Single module-level copyright comment (if any).
   /// We only ever accept one per TU.
-  llvm::MDNode *AIXCopyrightComment = nullptr;
+  llvm::MDNode *CopyrightCommentInTU = nullptr;
 
   /// @name Cache for Objective-C runtime types
   /// @{
@@ -1462,8 +1462,8 @@ public:
   /// Appends a dependent lib to the appropriate metadata value.
   void AddDependentLib(StringRef Lib);
 
-  /// Record the AIX copyright comment in module-level metadata.
-  void ProcessPragmaCommentCopyright(StringRef Comment); 
+  /// Process pragma comment
+  void ProcessPragmaComment(PragmaMSCommentKind Kind, StringRef Comment); 
 
   llvm::GlobalVariable::LinkageTypes getFunctionLinkage(GlobalDecl GD);
 

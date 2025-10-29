@@ -1,15 +1,15 @@
-//===-- CopyrightMetadataPass.cpp - Lower AIX copyright metadata ----------===//
+//===-- CopyrightMetadataPass.cpp - Lower copyright metadata -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===---------------------------------------------------------------------===//
 //
 // CopyrightMetadataPass pass lowers module-level copyright metadata emitted by
 // Clang:
 //
-//     !aix.copyright.comment = !{!"Copyright ..."}
+//     !loadtime.copyright.comment = !{!"Copyright ..."}
 //
 // into concrete, translation-unit–local globals to ensure that copyright
 // strings:
@@ -20,8 +20,8 @@
 // For each module (translation unit), the pass performs the following:
 //
 //   1. Creates a null-terminated, internal constant string global
-//      (`__aix_copyright_str`) containing the copyright text in
-//      `__aix_copyright` section..
+//      (`__loadtime_copyright_str`) containing the copyright text in
+//      `__copyright_comment` section.
 //
 //   2. Marks the string in `llvm.used` so it cannot be dropped by
 //      optimization or LTO.
@@ -33,16 +33,16 @@
 //      discarding it (as long as the referencing symbol is kept).
 //
 //  Input IR:
-//     !aix.copyright.comment = !{!"Copyright"}
+//     !loadtime.copyright.comment = !{!"Copyright"}
 //  Output IR:
-//     @__aix_copyright_str = internal constant [N x i8] c"Copyright\00",
-//                          section "__aix_copyright"
-//     @llvm.used = appending global [1 x ptr] [ptr @__aix_copyright_str]
+//     @__loadtime_copyright_str = internal constant [N x i8] c"Copyright\00",
+//                          section "__copyright_comment"
+//     @llvm.used = appending global [1 x ptr] [ptr @__loadtime_copyright_str]
 //
 //     define i32 @func() !implicit.ref !5 { ... }
-//     !5 = !{ptr @__aix_copyright_str}
+//     !5 = !{ptr @__loadtime_copyright_str}
 //
-// The copyright string is placed in the "__aix_copyright" section (mapped to
+// The copyright string is placed in the "__copyright_comment" section (mapped to
 // an XCOFF csect with [RO] storage class), making it easily identifiable in
 // object files and executables. The R_REF relocation prevents the linker
 // from discarding this section during garbage collection.  Copyright string (if
@@ -90,9 +90,9 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
 
   LLVMContext &Ctx = M.getContext();
 
-  // Single-metadata: !aix.copyright.comment = !{!0}
+  // Single-metadata: !loadtime.copyright.comment = !{!0}
   // Each operand node is expected to have one MDString operand.
-  NamedMDNode *MD = M.getNamedMetadata("aix.copyright.comment");
+  NamedMDNode *MD = M.getNamedMetadata("loadtime.copyright.comment");
   if (!MD || MD->getNumOperands() == 0)
     return PreservedAnalyses::all();
 
@@ -117,15 +117,15 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
   auto *StrGV = new GlobalVariable(M, StrInit->getType(),
                                    /*isConstant=*/true,
                                    GlobalValue::InternalLinkage, StrInit,
-                                   /*Name=*/"__aix_copyright_str");
+                                   /*Name=*/"__loadtime_copyright_str");
   // Set unnamed_addr to allow the linker to merge identical strings
   StrGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
   StrGV->setAlignment(Align(1));
-  // Place in the "__aix_copyright" section.
+  // Place in the "__copyright_comment" section.
   // Backend maps this to an appropriate XCOFF csect (typically [RO])
   // The section will appear in assembly as:
-  //   .csect __aix_copyright[RO],2
-  StrGV->setSection("__aix_copyright");
+  //   .csect __copyright_comment[RO],2
+  StrGV->setSection("__copyright_comment");
 
   // 2. Add the string to llvm.used to prevent LLVM optimization/LTO passes from
   // removing it.
@@ -133,7 +133,7 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
 
   // 3. Attach !implicit ref to every defined function
   // Create a metadata node pointing to the copyright string:
-  //   !N = !{ptr @__aix_copyright_str}
+  //   !N = !{ptr @__loadtime_copyright_str}
   Metadata *Ops[] = {ConstantAsMetadata::get(StrGV)};
   MDNode *ImplicitRefMD = MDNode::get(Ctx, Ops);
 

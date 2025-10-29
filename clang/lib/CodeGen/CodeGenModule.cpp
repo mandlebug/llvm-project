@@ -42,6 +42,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/Module.h"
+#include "clang/Basic/PragmaKinds.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
@@ -1569,10 +1570,10 @@ void CodeGenModule::Release() {
 
   EmitBackendOptionsMetadata(getCodeGenOpts());
 
-  // Emit copyright metadata for AIX
-  if (AIXCopyrightComment) {
-    auto *NMD = getModule().getOrInsertNamedMetadata("aix.copyright.comment");
-    NMD->addOperand(AIXCopyrightComment);
+  // Emit copyright metadata
+  if (CopyrightCommentInTU) {
+    auto *NMD = getModule().getOrInsertNamedMetadata("loadtime.copyright.comment");
+    NMD->addOperand(CopyrightCommentInTU);
   }
 
   // If there is device offloading code embed it in the host now.
@@ -3410,17 +3411,20 @@ void CodeGenModule::AddDependentLib(StringRef Lib) {
 
 /// Process the #pragma comment(copyright, "copyright string ")
 /// and create llvm metadata for the copyright
-void CodeGenModule::ProcessPragmaCommentCopyright(StringRef Comment) {
+void CodeGenModule::ProcessPragmaComment(PragmaMSCommentKind Kind,
+                                         StringRef Comment) {
 
-  if (!getTriple().isOSAIX())
+  if (!getTriple().isOSAIX() || Kind != PCK_Copyright)
     return;
 
+  assert(
+      !CopyrightCommentInTU &&
+      "Only one copyright comment should be present in the Translation Unit");
   // Create llvm metadata with the comment string
   auto &C = getLLVMContext();
   llvm::Metadata *Ops[] = {llvm::MDString::get(C, Comment.str())};
   auto *Node = llvm::MDNode::get(C, Ops);
-  if(!AIXCopyrightComment)
-    AIXCopyrightComment = Node;
+  CopyrightCommentInTU = Node;
 }
 
 /// Add link options implied by the given module, including modules
@@ -7604,7 +7608,7 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
       // Skip pragmas deserialized from modules/PCHs
       if (PCD->isFromASTFile())
         break;
-      ProcessPragmaCommentCopyright(PCD->getArg());
+      ProcessPragmaComment(PCD->getCommentKind(), PCD->getArg());
       break;
     case PCK_Compiler:
     case PCK_ExeStr:
