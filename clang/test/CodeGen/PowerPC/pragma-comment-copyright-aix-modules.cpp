@@ -4,17 +4,19 @@
 // RUN: %clang_cc1 -std=c++20 -triple powerpc-ibm-aix \
 // RUN:   -emit-module-interface %t/copymod.cppm -o %t/copymod.pcm
 
-// verify that module interface emit copyright string when compiled to assembly
-// RUN: %clang_cc1 -std=c++20 -triple powerpc-ibm-aix -S %t/copymod.cppm -o - \
+// Verify that module interface emits copyright global when compiled to IR
+// RUN: %clang_cc1 -std=c++20 -triple powerpc-ibm-aix -emit-llvm %t/copymod.cppm -o - \
 // RUN:   | FileCheck %s --check-prefix=CHECK-MOD
-// CHECK-MOD: .string "module me"
+// CHECK-MOD: @__loadtime_copyright_str = internal unnamed_addr constant [10 x i8] c"module me\00", section "__copyright_comment"
+// CHECK-MOD: @llvm.used = appending global {{.*}} @__loadtime_copyright_str
 
 // Compile an importing TU that uses the prebuilt module and verify that it
-// does NOT re-emit the module's copyright string.
+// does NOT re-emit the module's copyright global.
 // RUN: %clang_cc1 -std=c++20 -triple powerpc-ibm-aix \
-// RUN:   -fprebuilt-module-path=%t -S %t/importmod.cc -o - \
-// RUN:   | FileCheck %s
-// CHECK-NOT: .string "module me"
+// RUN:   -fprebuilt-module-path=%t -emit-llvm %t/importmod.cc -o - \
+// RUN:   | FileCheck %s --check-prefix=CHECK-IMPORT
+// CHECK-IMPORT-NOT: @__loadtime_copyright_str
+// CHECK-IMPORT-NOT: c"module me\00"
 
 //--- copymod.cppm
 export module copymod;

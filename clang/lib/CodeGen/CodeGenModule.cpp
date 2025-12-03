@@ -40,7 +40,7 @@
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
-// #include "clang/Basic/DiagnosticParse.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/PragmaKinds.h"
 #include "clang/Basic/SourceManager.h"
