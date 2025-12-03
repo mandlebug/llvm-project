@@ -20,7 +20,7 @@
 int main() { return 0; }
 
 // Check that both metadata sections are present
-// CHECK: !loadtime.copyright.comment = !{![[copyright:[0-9]+]]}
+// CHECK: !comment_string.loadtime = !{![[copyright:[0-9]+]]}
 
 // Check individual metadata content
 // CHECK: ![[copyright]] = !{!"@(#) Copyright"}

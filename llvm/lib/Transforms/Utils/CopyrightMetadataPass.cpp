@@ -9,14 +9,10 @@
 // CopyrightMetadataPass pass lowers module-level copyright metadata emitted by
 // Clang:
 //
-//     !loadtime.copyright.comment = !{!"Copyright ..."}
+//     !comment_string.loadtime = !{!"Copyright ..."}
 //
-// into concrete, translation-unit–local globals to ensure that copyright
-// strings:
-//   - survive all optimization and LTO pipelines,
-//   - are not removed by linker garbage collection, and
-//   - remain visible in the final XCOFF binary.
-//
+// into concrete, translation-unit–local globals.
+// This Pass is enabled only for AIX.
 // For each module (translation unit), the pass performs the following:
 //
 //   1. Creates a null-terminated, internal constant string global
@@ -33,7 +29,7 @@
 //      discarding it (as long as the referencing symbol is kept).
 //
 //  Input IR:
-//     !loadtime.copyright.comment = !{!"Copyright"}
+//     !comment_string.loadtime = !{!"Copyright"}
 //  Output IR:
 //     @__loadtime_copyright_str = internal constant [N x i8] c"Copyright\00",
 //                          section "__copyright_comment"
@@ -42,11 +38,6 @@
 //     define i32 @func() !implicit.ref !5 { ... }
 //     !5 = !{ptr @__loadtime_copyright_str}
 //
-// The copyright string is placed in the "__copyright_comment" section (mapped to
-// an XCOFF csect with [RO] storage class), making it easily identifiable in
-// object files and executables. The R_REF relocation prevents the linker
-// from discarding this section during garbage collection.  Copyright string (if
-// kept by the linker) is expected to be loaded at run time.
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/CopyrightMetadataPass.h"
@@ -90,9 +81,9 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
 
   LLVMContext &Ctx = M.getContext();
 
-  // Single-metadata: !loadtime.copyright.comment = !{!0}
+  // Single-metadata: !comment_string.loadtime = !{!0}
   // Each operand node is expected to have one MDString operand.
-  NamedMDNode *MD = M.getNamedMetadata("loadtime.copyright.comment");
+  NamedMDNode *MD = M.getNamedMetadata("comment_string.loadtime");
   if (!MD || MD->getNumOperands() == 0)
     return PreservedAnalyses::all();
 
@@ -113,7 +104,7 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
   // 1. Create a single NULL-terminated string global
   Constant *StrInit = ConstantDataArray::getString(Ctx, Text, /*AddNull=*/true);
 
-  // Internal, constant, TU-local — avoids duplicate symbol issues across TUs.
+  // Internal, constant, TU-local--avoids duplicate symbol issues across TUs.
   auto *StrGV = new GlobalVariable(M, StrInit->getType(),
                                    /*isConstant=*/true,
                                    GlobalValue::InternalLinkage, StrInit,
@@ -122,9 +113,7 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
   StrGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
   StrGV->setAlignment(Align(1));
   // Place in the "__copyright_comment" section.
-  // Backend maps this to an appropriate XCOFF csect (typically [RO])
-  // The section will appear in assembly as:
-  //   .csect __copyright_comment[RO],2
+  // The GV is constant, so we expect a read-only section.
   StrGV->setSection("__copyright_comment");
 
   // 2. Add the string to llvm.used to prevent LLVM optimization/LTO passes from
@@ -138,7 +127,6 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
   MDNode *ImplicitRefMD = MDNode::get(Ctx, Ops);
 
   // Lambda to attach implicit.ref metadata to a function.
-  // The backend will translate this into .ref assembly directives.
   auto AddImplicitRef = [&](Function &F) {
     if (F.isDeclaration())
       return;

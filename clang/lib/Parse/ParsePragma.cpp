@@ -3214,15 +3214,10 @@ void PragmaCommentHandler::HandlePragma(Preprocessor &PP,
           .Case("copyright", PCK_Copyright)
           .Default(PCK_Unknown);
 
-  // Restrict copyright to AIX targets only
-  if (!PP.getTargetInfo().getTriple().isOSAIX()) {
-    switch (Kind) {
-    case PCK_Copyright:
+  // Restrict copyright to AIX targets only. This could be applied for z/OS
+  // and extended with other IBM pragma comment kinds.
+  if (!PP.getTargetInfo().getTriple().isOSAIX() && Kind == PCK_Copyright) {
       Kind = PCK_Unknown;
-      break;
-    default:
-      break;
-    }
   }
 
   if (Kind == PCK_Unknown) {
@@ -3238,6 +3233,8 @@ void PragmaCommentHandler::HandlePragma(Preprocessor &PP,
 
   // On AIX, pragma comment copyright can each appear only once in a TU.
   if (Kind == PCK_Copyright) {
+    assert(PP.getTargetInfo().getTriple().isOSAIX() &&
+           "Pragma Comment Copyright is supported only on AIX");
     if (SeenCopyrightInTU) {
       PP.Diag(Tok.getLocation(), diag::warn_pragma_comment_once)
           << II->getName();

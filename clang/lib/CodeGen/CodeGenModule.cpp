@@ -40,7 +40,7 @@
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
-#include "clang/Basic/DiagnosticFrontend.h"
+// #include "clang/Basic/DiagnosticParse.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/PragmaKinds.h"
 #include "clang/Basic/SourceManager.h"
@@ -1571,9 +1571,9 @@ void CodeGenModule::Release() {
   EmitBackendOptionsMetadata(getCodeGenOpts());
 
   // Emit copyright metadata
-  if (CopyrightCommentInTU) {
-    auto *NMD = getModule().getOrInsertNamedMetadata("loadtime.copyright.comment");
-    NMD->addOperand(CopyrightCommentInTU);
+  if (LoadTimeComment) {
+    auto *NMD = getModule().getOrInsertNamedMetadata("comment_string.loadtime");
+    NMD->addOperand(LoadTimeComment);
   }
 
   // If there is device offloading code embed it in the host now.
@@ -3409,22 +3409,29 @@ void CodeGenModule::AddDependentLib(StringRef Lib) {
   LinkerOptionsMetadata.push_back(llvm::MDNode::get(C, MDOpts));
 }
 
-/// Process the #pragma comment(copyright, "copyright string ")
-/// and create llvm metadata for the copyright
+/// Process AIX copyright pragma and create LLVM metadata.
+/// #pragma comment(copyright, "string") embed copyright
+/// information into the object file's loader section.
+///
+/// Example: #pragma comment(copyright, "Copyright IBM Corp. 2024")
+///
+/// This should only be called once per translation unit.
 void CodeGenModule::ProcessPragmaComment(PragmaMSCommentKind Kind,
                                          StringRef Comment) {
+  // Ensure we are only processing Copyright Pragmas
+  assert(Kind == PCK_Copyright &&
+         "Unexpected pragma comment kind, ProcessPragmaComment should only be "
+         "called for PCK_Copyright");
 
-  if (!getTriple().isOSAIX() || Kind != PCK_Copyright)
+  // Only one copyright pragma allowed per translation unit
+  if (LoadTimeComment) {
     return;
+  }
 
-  assert(
-      !CopyrightCommentInTU &&
-      "Only one copyright comment should be present in the Translation Unit");
   // Create llvm metadata with the comment string
   auto &C = getLLVMContext();
-  llvm::Metadata *Ops[] = {llvm::MDString::get(C, Comment.str())};
-  auto *Node = llvm::MDNode::get(C, Ops);
-  CopyrightCommentInTU = Node;
+  llvm::Metadata *Ops[] = {llvm::MDString::get(C, Comment)};
+  LoadTimeComment = llvm::MDNode::get(C, Ops);
 }
 
 /// Add link options implied by the given module, including modules
@@ -7605,10 +7612,10 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
         AddDependentLib(PCD->getArg());
       break;
     case PCK_Copyright:
-      // Skip pragmas deserialized from modules/PCHs
-      if (PCD->isFromASTFile())
-        break;
-      ProcessPragmaComment(PCD->getCommentKind(), PCD->getArg());
+      // Skip pragmas deserialized from modules/PCHs. Process the pragma comment
+      // only if it originated in this TU and the target OS is AIX.
+      if (!PCD->isFromASTFile() && getTriple().isOSAIX())
+        ProcessPragmaComment(PCD->getCommentKind(), PCD->getArg());
       break;
     case PCK_Compiler:
     case PCK_ExeStr:

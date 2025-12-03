@@ -38,7 +38,7 @@ entry:
 !llvm.module.flags = !{!0}
 !0 = !{i32 1, !"wchar_size", i32 2}
 
-!loadtime.copyright.comment = !{!1}
+!comment_string.loadtime = !{!1}
 !1 = !{!"@(#) Copyright IBM 2025"}
 
 

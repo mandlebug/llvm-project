@@ -587,9 +587,8 @@ private:
   /// A vector of metadata strings for dependent libraries for ELF.
   SmallVector<llvm::MDNode *, 16> ELFDependentLibraries;
 
-  /// Single module-level copyright comment (if any).
-  /// We only ever accept one per TU.
-  llvm::MDNode *CopyrightCommentInTU = nullptr;
+  /// Metadata for copyright pragma comment (if present).
+  llvm::MDNode *LoadTimeComment = nullptr;
 
   /// @name Cache for Objective-C runtime types
   /// @{
