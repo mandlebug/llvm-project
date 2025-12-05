@@ -1,4 +1,4 @@
-//===-- CopyrightMetadataPass.cpp - Lower copyright metadata -------------===//
+//===-- LowerCommentStringPass.cpp - Lower Comment string metadata -------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===---------------------------------------------------------------------===//
 //
-// CopyrightMetadataPass pass lowers module-level copyright metadata emitted by
-// Clang:
+// LowerCommentStringPass pass lowers module-level comment string metadata 
+// emitted by Clang:
 //
 //     !comment_string.loadtime = !{!"Copyright ..."}
 //
@@ -16,8 +16,8 @@
 // For each module (translation unit), the pass performs the following:
 //
 //   1. Creates a null-terminated, internal constant string global
-//      (`__loadtime_copyright_str`) containing the copyright text in
-//      `__copyright_comment` section.
+//      (`__loadtime_comment_str`) containing the copyright text in
+//      `__loadtime_comment` section.
 //
 //   2. Marks the string in `llvm.used` so it cannot be dropped by
 //      optimization or LTO.
@@ -31,16 +31,16 @@
 //  Input IR:
 //     !comment_string.loadtime = !{!"Copyright"}
 //  Output IR:
-//     @__loadtime_copyright_str = internal constant [N x i8] c"Copyright\00",
-//                          section "__copyright_comment"
-//     @llvm.used = appending global [1 x ptr] [ptr @__loadtime_copyright_str]
+//     @__loadtime_comment_str = internal constant [N x i8] c"Copyright\00",
+//                          section "__loadtime_comment"
+//     @llvm.used = appending global [1 x ptr] [ptr @__loadtime_comment_str]
 //
 //     define i32 @func() !implicit.ref !5 { ... }
-//     !5 = !{ptr @__loadtime_copyright_str}
+//     !5 = !{ptr @__loadtime_comment_str}
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Transforms/Utils/CopyrightMetadataPass.h"
+#include "llvm/Transforms/Utils/LowerCommentStringPass.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -61,20 +61,20 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
-#define DEBUG_TYPE "copyright-metadata"
+#define DEBUG_TYPE "lower-comment-string"
 
 using namespace llvm;
 
 static cl::opt<bool>
-    DisableCopyrightMetadata("disable-copyright-metadata", cl::ReallyHidden,
-                             cl::desc("Disable copyright metadata pass."),
+    DisableCopyrightMetadata("disable-lower-comment-string", cl::ReallyHidden,
+                             cl::desc("Disable LowerCommentString pass."),
                              cl::init(false));
 
 static bool isAIXTriple(const Module &M) {
   return Triple(M.getTargetTriple()).isOSAIX();
 }
 
-PreservedAnalyses CopyrightMetadataPass::run(Module &M,
+PreservedAnalyses LowerCommentStringPass::run(Module &M,
                                              ModuleAnalysisManager &AM) {
   if (DisableCopyrightMetadata || !isAIXTriple(M))
     return PreservedAnalyses::all();
@@ -108,13 +108,13 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
   auto *StrGV = new GlobalVariable(M, StrInit->getType(),
                                    /*isConstant=*/true,
                                    GlobalValue::InternalLinkage, StrInit,
-                                   /*Name=*/"__loadtime_copyright_str");
+                                   /*Name=*/"__loadtime_comment_str");
   // Set unnamed_addr to allow the linker to merge identical strings
   StrGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
   StrGV->setAlignment(Align(1));
-  // Place in the "__copyright_comment" section.
+  // Place in the "__loadtime_comment" section.
   // The GV is constant, so we expect a read-only section.
-  StrGV->setSection("__copyright_comment");
+  StrGV->setSection("__loadtime_comment");
 
   // 2. Add the string to llvm.used to prevent LLVM optimization/LTO passes from
   // removing it.
@@ -122,7 +122,7 @@ PreservedAnalyses CopyrightMetadataPass::run(Module &M,
 
   // 3. Attach !implicit ref to every defined function
   // Create a metadata node pointing to the copyright string:
-  //   !N = !{ptr @__loadtime_copyright_str}
+  //   !N = !{ptr @__loadtime_comment_str}
   Metadata *Ops[] = {ConstantAsMetadata::get(StrGV)};
   MDNode *ImplicitRefMD = MDNode::get(Ctx, Ops);
 

@@ -1,4 +1,4 @@
-//===-- CopyrightMetadataPass.h - Lower AIX copyright metadata -*- C++ -*-===//
+//===-- LowerCommentStringPass.h - Lower Comment string metadata -*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORMS_UTILS_COPYRIGHTMETADATAPASS_H
-#define LLVM_TRANSFORMS_UTILS_COPYRIGHTMETADATAPASS_H
+#ifndef LLVM_TRANSFORMS_UTILS_LOWERCOMMENTSTRINGPASS_H
+#define LLVM_TRANSFORMS_UTILS_LOWERCOMMENTSTRINGPASS_H
 
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
-class CopyrightMetadataPass : public PassInfoMixin<CopyrightMetadataPass> {
+class LowerCommentStringPass : public PassInfoMixin<LowerCommentStringPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
@@ -22,4 +22,4 @@ public:
 
 } // namespace llvm
 
-#endif // LLVM_TRANSFORMS_UTILS_COPYRIGHTMETADATAPASS_H
+#endif // LLVM_TRANSFORMS_UTILS_LOWERCOMMENTSTRINGPASS_H

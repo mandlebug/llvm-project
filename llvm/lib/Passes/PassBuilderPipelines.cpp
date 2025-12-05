@@ -135,7 +135,7 @@
 #include "llvm/Transforms/Utils/AddDiscriminators.h"
 #include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
-#include "llvm/Transforms/Utils/CopyrightMetadataPass.h"
+#include "llvm/Transforms/Utils/LowerCommentStringPass.h"
 #include "llvm/Transforms/Utils/CountVisits.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/ExtraPassManager.h"
@@ -1456,7 +1456,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   ModulePassManager MPM;
 
   // Process copyright metadata early, before any optimizations
-  MPM.addPass(CopyrightMetadataPass());
+  MPM.addPass(LowerCommentStringPass());
 
   // Run partial inlining pass to partially inline functions that have
   // large bodies.
@@ -2279,7 +2279,7 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   ModulePassManager MPM;
 
   // Process copyright metadata at O0 before any other transformations
-  MPM.addPass(CopyrightMetadataPass());
+  MPM.addPass(LowerCommentStringPass());
 
   // Perform pseudo probe instrumentation in O0 mode. This is for the
   // consistency between different build modes. For example, a LTO build can be
